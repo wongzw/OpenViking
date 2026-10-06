@@ -26,6 +26,9 @@ declare module "claude-code" {
       replies: Reply[];
       // answers whose card is expanded
       expanded: number[];
+      // card language: en, zh, or follow the system; sysLang is what "system" resolved to
+      langPref: "en" | "zh" | "system";
+      sysLang: "en" | "zh";
     };
   }
 }

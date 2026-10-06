@@ -80,6 +80,7 @@ describe("one answer", () => {
     expect(summaryLine(c)).toBe(
       "OV · 3 sources · 1 preference · 1 past event · 1 team doc · 1 read in full",
     );
+    expect(summaryLine(c, "zh")).toBe("OV · 3 个来源 · 1 条偏好 · 1 条经历 · 1 份团队文档 · 完整读取 1 个");
     expect(titleOf(EVENT)).toBe("10/3 web版本未更新排查请求");
   });
 

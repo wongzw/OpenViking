@@ -134,15 +134,57 @@ export const ICON: Record<Group, string> = {
   skill: "⚙",
 };
 
-const NOUN: Record<Group, [string, string]> = {
-  prefs: ["preference", "preferences"],
-  history: ["past event", "past events"],
-  work: ["work memory", "work memories"],
-  docs: ["team doc", "team docs"],
-  skill: ["skill", "skills"],
-};
+export type Lang = "en" | "zh";
 
-const plural = (n: number, [one, many]: [string, string]) => `${n} ${n === 1 ? one : many}`;
+const n1 = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+// Every word a card shows, in English and Chinese.
+export const STRINGS = {
+  en: {
+    noun: {
+      prefs: (n: number) => n1(n, "preference", "preferences"),
+      history: (n: number) => n1(n, "past event", "past events"),
+      work: (n: number) => n1(n, "work memory", "work memories"),
+      docs: (n: number) => n1(n, "team doc", "team docs"),
+      skill: (n: number) => n1(n, "skill", "skills"),
+    } as Record<Group, (n: number) => string>,
+    sources: (n: number) => n1(n, "source", "sources"),
+    readInFull: (n: number) => `${n} read in full`,
+    opened: "read in full",
+    expand: "[Expand]",
+    collapse: "[Collapse]",
+    autoRecalled: "auto-recalled",
+    foundByClaude: "found by Claude",
+    lookups: "Claude's own lookups",
+    searched: (q: string, n: number) => `⌕ Searched “${q}” · ${n1(n, "result", "results")}`,
+    read: (titles: string) => `▤ Read ${titles}`,
+    failed: "failed",
+    langSet: (label: string) => `OpenViking cards: ${label}`,
+    langNames: { en: "English", zh: "中文", system: "follow the system" },
+  },
+  zh: {
+    noun: {
+      prefs: (n: number) => `${n} 条偏好`,
+      history: (n: number) => `${n} 条经历`,
+      work: (n: number) => `${n} 条工作记忆`,
+      docs: (n: number) => `${n} 份团队文档`,
+      skill: (n: number) => `${n} 个技能`,
+    } as Record<Group, (n: number) => string>,
+    sources: (n: number) => `${n} 个来源`,
+    readInFull: (n: number) => `完整读取 ${n} 个`,
+    opened: "完整读取",
+    expand: "[展开]",
+    collapse: "[收起]",
+    autoRecalled: "自动召回",
+    foundByClaude: "Claude 查到",
+    lookups: "Claude 主动查找",
+    searched: (q: string, n: number) => `⌕ 搜索“${q}” · ${n} 条结果`,
+    read: (titles: string) => `▤ 读取 ${titles}`,
+    failed: "失败",
+    langSet: (label: string) => `OpenViking 卡片语言：${label}`,
+    langNames: { en: "English", zh: "中文", system: "跟随系统" },
+  },
+};
 
 // URIs can hold a literal "%" (a title like "50% off"), which decodeURIComponent rejects.
 function decodeUri(uri: string): string {
@@ -187,16 +229,12 @@ export function consulted(turn: Turn) {
 }
 
 // The collapsed card: "OV · 8 sources · 4 past events · 3 work memories · 1 read in full".
-export function summaryLine(c: ReturnType<typeof consulted>): string {
-  const groups = (Object.keys(NOUN) as Group[])
+export function summaryLine(c: ReturnType<typeof consulted>, lang: Lang = "en"): string {
+  const t = STRINGS[lang];
+  const groups = (Object.keys(t.noun) as Group[])
     .filter((g) => c.byGroup[g] > 0)
-    .map((g) => plural(c.byGroup[g], NOUN[g]));
-  return [
-    "OV",
-    plural(c.rows.length, ["source", "sources"]),
-    ...groups,
-    c.readInFull ? `${c.readInFull} read in full` : "",
-  ]
+    .map((g) => t.noun[g](c.byGroup[g]));
+  return ["OV", t.sources(c.rows.length), ...groups, c.readInFull ? t.readInFull(c.readInFull) : ""]
     .filter(Boolean)
     .join(" · ");
 }

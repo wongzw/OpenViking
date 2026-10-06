@@ -2,6 +2,8 @@ import type { EngineInterface, Register, ResolveInput } from "claude-code";
 import type { Lookup, Turn } from "./types";
 import {
   ICON,
+  STRINGS,
+  type Lang,
   classifyCall,
   consulted,
   groupOf,
@@ -14,6 +16,8 @@ import {
 const turnsRef = { plugin: "openviking-memory", key: "turns" } as const;
 const repliesRef = { plugin: "openviking-memory", key: "replies" } as const;
 const expandedRef = { plugin: "openviking-memory", key: "expanded" } as const;
+const langPrefRef = { plugin: "openviking-memory", key: "langPref" } as const;
+const sysLangRef = { plugin: "openviking-memory", key: "sysLang" } as const;
 
 const MAX_TURNS = 50;
 const MAX_SESSIONS = 20;
@@ -87,6 +91,31 @@ async function setExpanded($: EngineInterface, n: number | "all", isOpen: boolea
   await save($);
 }
 
+async function getLang($: EngineInterface): Promise<Lang> {
+  const { value: pref = "system" } = await $.state.get(langPrefRef);
+  if (pref !== "system") return pref;
+  const { value: sys = "en" } = await $.state.get(sysLangRef);
+  return sys;
+}
+
+// The saved choice from earlier sessions, and what "system" means on this
+// machine: LANG first, then the macOS language list.
+async function loadLang($: EngineInterface) {
+  const saved = await $.store.get("usage:lang");
+  if (saved === "en" || saved === "zh" || saved === "system") await $.state.set(langPrefRef, saved);
+  let sys: Lang = /^zh/i.test((await $.env.get("LANG")) ?? "") ? "zh" : "en";
+  if (sys === "en") {
+    try {
+      const run = await $.process.run(["defaults", "read", "-g", "AppleLanguages"], { timeoutMs: 3000 });
+      const first = /"?([A-Za-z-]+)"?/.exec(run.stdout.replace(/[()\s,]+/, ""))?.[1] ?? "";
+      if (run.exitCode === 0 && /^zh/i.test(first)) sys = "zh";
+    } catch {
+      // Not macOS, or no language list: keep English.
+    }
+  }
+  await $.state.set(sysLangRef, sys);
+}
+
 // The card under an answer: one line of totals, or that line plus every source
 // and Claude's own lookups. Nothing when the answer drew on nothing.
 async function card($: EngineInterface, e: ResolveInput, turn: Turn) {
@@ -96,15 +125,17 @@ async function card($: EngineInterface, e: ResolveInput, turn: Turn) {
   if (c.rows.length === 0 && lookups.length === 0) return null;
   const { value: expanded = [] } = await $.state.get(expandedRef);
   const isOpen = expanded.includes(turn.n);
+  const lang = await getLang($);
+  const t = STRINGS[lang];
   return (
     <Box flexDirection="column" marginLeft={2} marginTop={1}>
       <Box flexWrap="wrap" columnGap={2}>
         <Text color={ACCENT} wrap="wrap">
-          {summaryLine(c)}
+          {summaryLine(c, lang)}
         </Text>
         <Button
           key={`ov-toggle-${turn.n}`}
-          label={isOpen ? "[Collapse]" : "[Expand]"}
+          label={isOpen ? t.collapse : t.expand}
           plain
           onPress={() => setExpanded($, turn.n, !isOpen)}
         />
@@ -116,21 +147,21 @@ async function card($: EngineInterface, e: ResolveInput, turn: Turn) {
             {ICON[groupOf(r.uri)]} {titleOf(r.uri)}
             <Text dimColor>
               {r.from === "recall"
-                ? ` · auto-recalled${r.score > 0 ? ` ${r.score.toFixed(2)}` : ""}`
-                : " · found by Claude"}
-              {r.isOpened ? " · read in full" : ""}
+                ? ` · ${t.autoRecalled}${r.score > 0 ? ` ${r.score.toFixed(2)}` : ""}`
+                : ` · ${t.foundByClaude}`}
+              {r.isOpened ? ` · ${t.opened}` : ""}
             </Text>
           </Text>
         ))}
-      {isOpen && lookups.length > 0 && <Text bold>Claude's own lookups</Text>}
+      {isOpen && lookups.length > 0 && <Text bold>{t.lookups}</Text>}
       {isOpen &&
         lookups.map((l) => (
           <Text key={`ov-lookup-${l.id}`} wrap="wrap">
             {"  "}
-            {l.query !== null ? `⌕ Searched “${l.query}” · ${l.found.length} results` : ""}
+            {l.query !== null ? t.searched(l.query, l.found.length) : ""}
             {l.query !== null && l.opened.length ? " · " : ""}
-            {l.opened.length ? `▤ Read ${l.opened.map(titleOf).join(", ")}` : ""}
-            {l.isError && <Text color="red"> · failed</Text>}
+            {l.opened.length ? t.read(l.opened.map(titleOf).join(", ")) : ""}
+            {l.isError && <Text color="red"> · {t.failed}</Text>}
           </Text>
         ))}
     </Box>
@@ -140,10 +171,11 @@ async function card($: EngineInterface, e: ResolveInput, turn: Turn) {
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
     await safely($, "restore", () => restore($));
+    await safely($, "load language", () => loadLang($));
     await $.command.register({
       name: "openviking-usage",
-      description: "Expand or collapse the OpenViking cards under answers",
-      argumentHint: "expand | collapse",
+      description: "Expand or collapse the OpenViking cards under answers, or set their language",
+      argumentHint: "expand | collapse | lang en|zh|system",
     });
     return next(e);
   });
@@ -154,7 +186,14 @@ export const register: Register = (on) => {
       await setExpanded($, "all", verb === "expand");
       return {};
     }
-    return { text: "Usage: /openviking-usage expand | collapse" };
+    const lang = /^lang\s+(en|zh|system)$/.exec(verb)?.[1] as Lang | "system" | undefined;
+    if (lang) {
+      await $.state.set(langPrefRef, lang);
+      await $.store.set("usage:lang", lang);
+      const t = STRINGS[await getLang($)];
+      return { text: t.langSet(t.langNames[lang]) };
+    }
+    return { text: "Usage: /openviking-usage expand | collapse | lang en|zh|system" };
   });
 
   // Each prompt starts an answer; openviking-memory's recall block says what it injected.

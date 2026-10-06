@@ -392,7 +392,8 @@ Claude's own lookups
 - 分组：★ 偏好，◷ 过往事件，◆ 工作记忆（笔记、经验、你的 agent 的记忆），▤ 团队文档，⚙ Skill。
 - **read in full**：Claude 用 `read`（MCP 工具，或 `ov read`/`cat`/`abstract`/`overview`）打开了这个文件。只出现在搜索结果里的不算。
 - 没用到任何 OpenViking 内容的回答不显示卡片。
-- 用卡片上的按钮展开或折叠单张卡片；用 `/openviking-usage expand` 或 `/openviking-usage collapse` 展开或折叠全部卡片。界面文字只有英文。
+- 用卡片上的按钮展开或折叠单张卡片；用 `/openviking-usage expand` 或 `/openviking-usage collapse` 展开或折叠全部卡片。
+- 卡片文字默认跟随系统语言（中文或英文）。用 `/openviking-usage lang zh`、`lang en` 或 `lang system` 切换，选择会跨会话保留。
 
 **前提。** 卡片是一个 Claude Code hooks 模块（`hooks/hooks.json` 里的 `modules`，代码在 `mods/usage/`），需要 Claude Code 2.1.286 或更高版本，并启用 hooks 模块。下面这些情况下，Claude Code 会忽略这个模块，命令 hook 照常运行：
 

@@ -443,6 +443,7 @@ Claude's own lookups
 - **read in full**: Claude opened the file with `read`, through the MCP tool or `ov read`/`cat`/`abstract`/`overview`. A search hit doesn't count.
 - An answer that used nothing from OpenViking gets no card.
 - Expand or collapse one card with its button. Expand or collapse every card with `/openviking-usage expand` or `/openviking-usage collapse`.
+- Card labels follow your system language (English or Chinese). Set them with `/openviking-usage lang en`, `lang zh` or `lang system`. The choice is kept across sessions.
 
 **Requirements.** Cards are a Claude Code hooks module (`modules` in `hooks/hooks.json`, code in `mods/usage/`). They need Claude Code 2.1.286 or newer with hooks modules enabled. Claude Code ignores the module and runs the command hooks as before in these cases:
 
